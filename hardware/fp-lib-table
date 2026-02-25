@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "zigzag")(type "KiCad")(uri "/home/light/Kicad/lib/zigzag.pretty")(options "")(descr ""))
+)
