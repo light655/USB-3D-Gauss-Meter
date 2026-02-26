@@ -1,5 +1,6 @@
 # USB 3D-Gauss Meter
 
+![](./document/boards.webp)
 This project is a USB 3D-Gauss Meter based on Texas Instrument's TMAG5170 Hall Sensor.
 The Gauss Meter is powered by an STM32, which sends the measured data through USB.
 A Python GUI client is provided to show the measured results.
