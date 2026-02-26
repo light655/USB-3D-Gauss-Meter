@@ -69,6 +69,9 @@ void app_main(void) {
                     CDC_Transmit_FS(usb_tx_buf, 10);
                     HAL_Delay(1);
                 }
+                HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+                HAL_Delay(100);
+                HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
             } else if(usb_rx_buf[0] == 'R') {   // change range signal
                 switch(usb_rx_buf[1]) {         // range byte
                     case 0:
@@ -87,9 +90,9 @@ void app_main(void) {
                 uint8_t temp[10] = "D";
                 CDC_Transmit_FS(temp, 1);
 
-                // HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
-                // HAL_Delay(250);
-                // HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
+                HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
+                HAL_Delay(100);
+                HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
             }
         }
     }

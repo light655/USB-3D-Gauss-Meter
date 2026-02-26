@@ -1,0 +1,2 @@
+Pyside6>=6.10.1
+pyserial>=3.5
