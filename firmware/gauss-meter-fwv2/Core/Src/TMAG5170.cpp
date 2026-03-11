@@ -1,0 +1,1 @@
+../../../gauss-meter-fwv1/Core/Src/TMAG5170.cpp

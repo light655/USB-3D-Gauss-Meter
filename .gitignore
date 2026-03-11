@@ -1,6 +1,7 @@
 .vscode
-firmware/gauss-meter-fwv2/
 firmware/upload.sh
 hardware/shell/*.FCBak
 python-client/venv
 python-client/test.py
+python-client/test.csv
+python-client/__pycache__/

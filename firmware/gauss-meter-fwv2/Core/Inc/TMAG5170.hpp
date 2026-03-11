@@ -1,0 +1,1 @@
+../../../gauss-meter-fwv1/Core/Inc/TMAG5170.hpp
