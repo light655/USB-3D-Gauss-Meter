@@ -79,6 +79,8 @@ void app_main(void) {
             myTMAG.setOperatingMode(OPERATING_MODE_ActiveMeasureMode);
             myTMAG.enableAlertOutput(true);
 
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+
             int i = 0;
             int index;
             while(i < max_measurements && start_measurement_flag) {
@@ -113,6 +115,8 @@ void app_main(void) {
             myTMAG.enableMagneticChannel(false, false, false);
             myTMAG.setOperatingMode(OPERATING_MODE_ConfigurationMode);
             myTMAG.enableAlertOutput(false);
+
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
 
             start_measurement_flag = 0;
         }
