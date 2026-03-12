@@ -1,6 +1,6 @@
 .vscode
 firmware/upload.sh
-hardware/shell/*.FCBak
+*.FCBak
 python-client/venv
 python-client/test.py
 python-client/test.csv
