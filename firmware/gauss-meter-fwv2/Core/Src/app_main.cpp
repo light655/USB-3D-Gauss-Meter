@@ -1,4 +1,5 @@
 #include "main.h"
+#include "stm32f1xx_hal_gpio.h"
 #include "usbd_cdc_if.h"
 #include "TMAG5170.hpp"
 #include <cstdio>
@@ -30,6 +31,7 @@ void app_main(void) {
     measure_frame frames[USB_BATCH_SIZE];
 
     myTMAG.init();
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
 
     while(1) {
         if(start_measurement_flag) {
@@ -79,7 +81,7 @@ void app_main(void) {
             myTMAG.setOperatingMode(OPERATING_MODE_ActiveMeasureMode);
             myTMAG.enableAlertOutput(true);
 
-            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET); // measuring indicator
 
             int i = 0;
             int index;
@@ -98,7 +100,7 @@ void app_main(void) {
                 if((i + 1) % USB_BATCH_SIZE == 0) {   // send batch of measurements through USB
                     usb_tx_buf_len = USB_BATCH_SIZE * sizeof(measure_frame) + 1;
                     usb_tx_buf[0] = USB_BATCH_SIZE;  // first byte indicates number of frames in the batch
-                    memcpy(usb_tx_buf + 1, frames, usb_tx_buf_len);
+                    memcpy(usb_tx_buf + 1, frames, USB_BATCH_SIZE * sizeof(measure_frame));
                     CDC_Transmit_FS(usb_tx_buf, usb_tx_buf_len);
                 }
 
@@ -108,7 +110,7 @@ void app_main(void) {
             if((i % USB_BATCH_SIZE) != 0) {     // deal with remaining unsent data
                 usb_tx_buf_len = (i % USB_BATCH_SIZE) * sizeof(measure_frame) + 1;
                 usb_tx_buf[0] = i % USB_BATCH_SIZE;
-                memcpy(usb_tx_buf + 1, frames, usb_tx_buf_len);
+                memcpy(usb_tx_buf + 1, frames, (i % USB_BATCH_SIZE) * sizeof(measure_frame));
                 CDC_Transmit_FS(usb_tx_buf, usb_tx_buf_len);
             }
 
@@ -116,7 +118,7 @@ void app_main(void) {
             myTMAG.setOperatingMode(OPERATING_MODE_ConfigurationMode);
             myTMAG.enableAlertOutput(false);
 
-            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);   // turn off measuring indicator
 
             start_measurement_flag = 0;
         }
