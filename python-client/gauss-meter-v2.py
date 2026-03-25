@@ -8,11 +8,9 @@ from PySide6.QtWidgets import QLabel, QComboBox, QPushButton, QLCDNumber, QHBoxL
 from PySide6.QtCore import QTime, QTimer, QObject, QThread, Signal, Slot
 
 class MainWindow(QMainWindow):
-    state = "setting"   # setting, sending, active, pause
-
     port_list = []
     port_str_list = []
-    selected_port = None
+    port_name = None
 
     sampling_rate = 2       # default: 2500 sps
     range = 0
@@ -33,19 +31,19 @@ class MainWindow(QMainWindow):
         self.port_cbx = QComboBox(self)
         self.port_cbx.currentIndexChanged.connect(self.port_cbx_changed)
 
-        # Sampling rate selection combo box
-        self.sr_cbx_label = QLabel(self)
-        self.sr_cbx_label.setText("Select sampling rate for logging:")
-        self.sr_cbx = QComboBox(self)
-        self.sr_cbx.addItems(['2500 sps', '1250 sps', '625 sps', '312.5 sps'])
-        self.sr_cbx.currentIndexChanged.connect(self.sr_cbx_changed)
-
         # Range selection combo box
         self.range_cbx_label = QLabel(self)
         self.range_cbx_label.setText("Select measurement range:")
         self.range_cbx = QComboBox(self)
         self.range_cbx.addItems(["75mT", "150mT", "300mT"])
         self.range_cbx.currentIndexChanged.connect(self.range_cbx_changed)
+
+        # Sampling rate selection combo box
+        self.sr_cbx_label = QLabel(self)
+        self.sr_cbx_label.setText("Select sampling rate for logging:")
+        self.sr_cbx = QComboBox(self)
+        self.sr_cbx.addItems(['2500 sps', '1250 sps', '625 sps', '312.5 sps'])
+        self.sr_cbx.currentIndexChanged.connect(self.sr_cbx_changed)
 
         # start, pause, reset buttons
         self.start_button = QPushButton("Start")
@@ -128,13 +126,12 @@ class MainWindow(QMainWindow):
         self.layout = QVBoxLayout(self.container)
         self.layout.addWidget(self.port_cbx_label)
         self.layout.addWidget(self.port_cbx)
-        self.layout.addWidget(self.sr_cbx_label)
-        self.layout.addWidget(self.sr_cbx)
         self.layout.addWidget(self.range_cbx_label)
         self.layout.addWidget(self.range_cbx)
 
         # save options row: checkbox + file selector
         self.save_checkbox = QCheckBox("Save results")
+        self.save_checkbox.stateChanged.connect(self.toggle_save_options)
         self.file_lineedit = QLineEdit(self)
         self.file_lineedit.setPlaceholderText("Select file...")
         self.browse_button = QPushButton("Browse")
@@ -157,15 +154,30 @@ class MainWindow(QMainWindow):
         self.max_layout.addWidget(self.max_lineedit)
         self.layout.addWidget(self.max_container)
 
+        self.layout.addWidget(self.sr_cbx_label)
+        self.layout.addWidget(self.sr_cbx)
+
         self.layout.addWidget(self.button_container)
         self.layout.addWidget(self.lcd_container)
 
         self.setCentralWidget(self.container)
 
+        # initial state
+        self.toggle_save_options()
+
         # display update timer
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_things)
         self.timer.start(1000)  # update every second
+    
+    def toggle_save_options(self):
+        is_checked = self.save_checkbox.isChecked()
+        self.file_lineedit.setEnabled(is_checked)
+        self.browse_button.setEnabled(is_checked)
+        self.max_label.setEnabled(is_checked)
+        self.max_lineedit.setEnabled(is_checked)
+        self.sr_cbx_label.setEnabled(is_checked)
+        self.sr_cbx.setEnabled(is_checked)
     
     def browse_file(self):
         # prompt user for save filename
@@ -197,9 +209,6 @@ class MainWindow(QMainWindow):
             index = self.port_str_list.index(current_text)
             self.port_cbx.setCurrentIndex(index)    # selection to the new index of the same port
         else:                                   # if the selected port doesn't exist
-            if self.selected_port is not None:  # if the selected port is active
-                self.selected_port.close()      # close the selected port
-                self.selected_port = None
             self.port_cbx.setCurrentIndex(-1)   # don't select any port
         self.port_cbx.blockSignals(False)       # unblock selection signals
     
@@ -207,7 +216,7 @@ class MainWindow(QMainWindow):
         self.port_name = self.port_list[index]
     
     def sr_cbx_changed(self, index):
-        self.sampling_rate = int(index) + 2     # index 0 is 2500 sps, which is 2 for setting the TMAG5170
+        self.sampling_rate = int(index) + 2     # 2500 sps -> 010b etc.
     
     def range_cbx_changed(self, index):
         self.range = int(index)
@@ -339,7 +348,6 @@ class SerialWorker(QObject):
                     bytes_read = ser.read(1)
                     time.sleep(0.01)
                 print("Setting Completed.")
-                ser.reset_input_buffer()
 
                 i_batch = 0
                 expected_bytes = min(self.max_measurements, self.serial_batch_size) * self.frame_size + 1
