@@ -14,7 +14,7 @@ class MainWindow(QMainWindow):
     port_str_list = []
     selected_port = None
 
-    sampling_rate = 0
+    sampling_rate = 2       # default: 2500 sps
     range = 0
     multiplier = [75 / 32768, 150 / 32768, 300 / 32768]
     busy_setting = False
@@ -37,7 +37,7 @@ class MainWindow(QMainWindow):
         self.sr_cbx_label = QLabel(self)
         self.sr_cbx_label.setText("Select sampling rate for logging:")
         self.sr_cbx = QComboBox(self)
-        self.sr_cbx.addItems(['10ksps', '5.7ksps', '3.1ksps', '1.6ksps', '0.8ksps', '0.4ksps'])
+        self.sr_cbx.addItems(['2500 sps', '1250 sps', '625 sps', '312.5 sps'])
         self.sr_cbx.currentIndexChanged.connect(self.sr_cbx_changed)
 
         # Range selection combo box
@@ -207,7 +207,7 @@ class MainWindow(QMainWindow):
         self.port_name = self.port_list[index]
     
     def sr_cbx_changed(self, index):
-        self.sampling_rate = int(index)
+        self.sampling_rate = int(index) + 2     # index 0 is 2500 sps, which is 2 for setting the TMAG5170
     
     def range_cbx_changed(self, index):
         self.range = int(index)
