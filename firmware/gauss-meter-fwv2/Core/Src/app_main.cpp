@@ -82,6 +82,7 @@ void app_main(void) {
             myTMAG.enableAlertOutput(true);
 
             HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET); // measuring indicator
+            uint32_t t0 = GetMicros();
 
             int i = 0;
             int index;
@@ -92,7 +93,7 @@ void app_main(void) {
 
                 index = i % USB_BATCH_SIZE;
                 // frames[i % USB_BATCH_SIZE].S.t1 = HAL_GetTick() * 1000; // temporary solution
-                frames[index].S.t1 = GetMicros();
+                frames[index].S.t1 = GetMicros() - t0;
                 frames[index].S.Bx = myTMAG.readXRaw();
                 frames[index].S.By = myTMAG.readYRaw();
                 frames[index].S.Bz = myTMAG.readZRaw();
