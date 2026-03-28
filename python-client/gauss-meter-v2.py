@@ -45,10 +45,9 @@ class MainWindow(QMainWindow):
         self.sr_cbx.addItems(['2500 sps', '1250 sps', '625 sps', '312.5 sps'])
         self.sr_cbx.currentIndexChanged.connect(self.sr_cbx_changed)
 
-        # start, pause, reset buttons
+        # start, reset buttons
         self.start_button = QPushButton("Start")
         self.start_button.clicked.connect(self.start_pressed)
-        self.pause_button = QPushButton("Pause")
         self.reset_button = QPushButton("Reset")
         self.reset_button.setEnabled(False)
         self.reset_button.clicked.connect(self.reset_state)
@@ -58,7 +57,6 @@ class MainWindow(QMainWindow):
         self.button_layout = QHBoxLayout(self.button_container)
         self.button_layout.addStretch()  # Add space on the left
         self.button_layout.addWidget(self.start_button)
-        self.button_layout.addWidget(self.pause_button)
         self.button_layout.addWidget(self.reset_button)
         self.button_layout.addStretch()  # Add space on the right
 
