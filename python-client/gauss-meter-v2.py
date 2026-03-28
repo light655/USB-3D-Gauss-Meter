@@ -5,7 +5,7 @@ import time
 
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QMessageBox
 from PySide6.QtWidgets import QLabel, QComboBox, QPushButton, QLCDNumber, QHBoxLayout, QVBoxLayout, QSizePolicy, QCheckBox, QLineEdit, QFileDialog
-from PySide6.QtCore import QTime, QTimer, QObject, QThread, Signal, Slot
+from PySide6.QtCore import QTime, QTimer, QObject, QThread, Signal, Slot, QEventLoop, QMetaObject, Qt
 
 class MainWindow(QMainWindow):
     port_list = []
@@ -47,7 +47,7 @@ class MainWindow(QMainWindow):
 
         # start, pause, reset buttons
         self.start_button = QPushButton("Start")
-        self.start_button.clicked.connect(self.start_logging)
+        self.start_button.clicked.connect(self.start_pressed)
         self.pause_button = QPushButton("Pause")
         self.reset_button = QPushButton("Reset")
         self.reset_button.setEnabled(False)
@@ -165,7 +165,7 @@ class MainWindow(QMainWindow):
         # initial state
         self.toggle_save_options()
 
-        # display update timer
+        # port list update timer
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_things)
         self.timer.start(1000)  # update every second
@@ -229,6 +229,12 @@ class MainWindow(QMainWindow):
         self.lcdy.display(f"{By:.01f}")
         self.lcdz.display(f"{Bz:.01f}")
 
+    def start_pressed(self):
+        if self.save_checkbox.isChecked():
+            self.start_logging()
+        else:
+            self.start_monitor()
+
     def start_logging(self):
         # read max measurements if provided, otherwise default to 1000
         if self.max_lineedit.text().strip():
@@ -263,19 +269,67 @@ class MainWindow(QMainWindow):
         self.thread.started.connect(self.worker.run)
         self.worker.clock.connect(self.update_lcd)
         self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.logging_finished)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+
+        self.busy_measuring = True
+        self.thread.start()
+
+    def start_monitor(self):
+        # disable inputs to prevent changes during monitoring
+        self.port_cbx.setEnabled(False)
+        self.sr_cbx.setEnabled(False)
+        self.range_cbx.setEnabled(False)
+        self.save_checkbox.setEnabled(False)
+        self.file_lineedit.setEnabled(False)
+        self.browse_button.setEnabled(False)
+        self.max_lineedit.setEnabled(False)
+        self.start_button.setEnabled(False)
+        self.reset_button.setEnabled(True)
+        
+        # start thread for receiving serial port data
+        self.thread = QThread()
+        if self.save_checkbox.isChecked():
+            file_name = self.save_file
+        else:
+            file_name = None
+        self.worker = MonitorWorker(self.port_name, measuring_range=self.range)
+        self.worker.moveToThread(self.thread)
+
+        self.thread.started.connect(self.worker.start)
+        self.worker.clock.connect(self.update_lcd)
+        self.worker.finished.connect(self.thread.quit)
         self.worker.finished.connect(self.reset_state)
         self.worker.finished.connect(self.worker.deleteLater)
         self.thread.finished.connect(self.thread.deleteLater)
 
         self.busy_measuring = True
         self.thread.start()
-    
+
+
     def reset_state(self):
         if self.worker:
-            self.worker.stop()
+            # Disconnect reset_state to avoid re-entry.
+            try:
+                self.worker.finished.disconnect(self.reset_state)
+            except RuntimeError:
+                pass  # Ignore if not connected
+
+            # Use an event loop to wait for the worker to finish.
+            loop = QEventLoop()
+            self.worker.finished.connect(loop.quit)
+            
+            # Request the worker to stop.
+            if isinstance(self.worker, MonitorWorker):
+                 QMetaObject.invokeMethod(self.worker, "stop", Qt.QueuedConnection)
+            else:
+                 self.worker.stop() # Direct call for SerialWorker
+
+            loop.exec() # Block until worker emits finished.
+
         if self.thread:
-            self.thread.quit()
-            self.thread.wait(1000)
+            self.thread.wait(2000) # Wait for thread to finish, with timeout.
 
         self.busy_measuring = False
 
@@ -289,10 +343,34 @@ class MainWindow(QMainWindow):
         self.max_lineedit.setEnabled(True)
         self.start_button.setEnabled(True)
         self.reset_button.setEnabled(False)
+        
+        self.worker = None
+        self.thread = None
+
+
+    def logging_finished(self):
+        if self.thread:
+            self.thread.quit()
+            self.thread.wait(2000) # Wait for thread to finish, with timeout.
+
+        self.busy_measuring = False
+
+        # enable inputs after reset
+        self.port_cbx.setEnabled(True)
+        self.sr_cbx.setEnabled(True)
+        self.range_cbx.setEnabled(True)
+        self.save_checkbox.setEnabled(True)
+        self.file_lineedit.setEnabled(True)
+        self.browse_button.setEnabled(True)
+        self.max_lineedit.setEnabled(True)
+        self.start_button.setEnabled(True)
+        self.reset_button.setEnabled(False)
+        
+        self.worker = None
+        self.thread = None
 
 
 class SerialWorker(QObject):
-    data_received = Signal(list)
     finished = Signal()
     clock = Signal(list)
 
@@ -377,7 +455,6 @@ class SerialWorker(QObject):
                         Bz = int.from_bytes(raw_data[block_begin + 8 : block_begin + 10], "little", signed=True) * self.multiplier[self.measuring_range]
                         self.buffer.append([f"{t1}", f"{Bx:.2f}", f"{By:.2f}", f"{Bz:.2f}"])
                         self.latest_data = [Bx, By, Bz]
-                        self.clock.emit(self.latest_data)
 
                     i_batch += 1
 
@@ -385,6 +462,7 @@ class SerialWorker(QObject):
                     if writer and i_batch % self.csv_batch_size == 0:
                         writer.writerows(self.buffer)
                         self.buffer.clear()
+                        self.clock.emit(self.latest_data)
                     
                     left_bytes = self.max_measurements - i_batch * self.serial_batch_size
                     if left_bytes > self.serial_batch_size:
@@ -398,13 +476,97 @@ class SerialWorker(QObject):
                 if writer and len(self.buffer):
                     writer.writerows(self.buffer)
                     self.buffer.clear()
+                    self.clock.emit(self.latest_data)
 
         except Exception as e:
             QMessageBox.critical(None, "Port Error", "Something went wrong. Please check port selection.")
         finally:
             if f:
                 f.close()
+            print("serial worker finished")
             self.finished.emit()
+
+
+class MonitorWorker(QObject):
+    finished = Signal()
+    clock = Signal(list)
+
+    def __init__(self, port_name, measuring_range=0, buadrate=115200):
+        super().__init__()
+        self.port_name = port_name
+        self.buadrate = buadrate
+        self.measuring_range = measuring_range
+        
+        self.ser = None
+        self._timer = None
+        self._stopped = False
+        
+        self.multiplier = [75 / 32768, 150 / 32768, 300 / 32768]
+        self.frame_size = 12
+        
+        # In monitor mode, we request one sample at a time.
+        self.sampling_rate = 5
+        self.max_measurements = 1
+
+    @Slot()
+    def start(self):
+        self._timer = QTimer()
+        self._timer.timeout.connect(self.get_sample)
+        try:
+            self.ser = serial.Serial(self.port_name, self.buadrate, timeout=0.5)
+            self._timer.start(250)
+        except serial.SerialException as e:
+            QMessageBox.critical(None, "Port Error", f"Failed to open port {self.port_name}.\n{e}")
+            self.finished.emit()
+
+    @Slot()
+    def stop(self):
+        if self._stopped:
+            return
+        self._stopped = True
+
+        if self._timer:
+            self._timer.stop()
+        if self.ser and self.ser.is_open:
+            self.ser.close()
+        self.finished.emit()
+
+    @Slot()
+    def get_sample(self):
+        if not self.ser or not self.ser.is_open:
+            return
+
+        try:
+            # write 7-byte setting command to STM32 to request one sample
+            self.ser.reset_input_buffer()
+            bytes_to_write = self.sampling_rate.to_bytes(1, "little")
+            setting_command = b"H" + bytes_to_write
+            bytes_to_write = self.measuring_range.to_bytes(1, "little")
+            setting_command += bytes_to_write
+            bytes_to_write = self.max_measurements.to_bytes(4, "little")
+            setting_command += bytes_to_write
+            self.ser.write(setting_command)
+            
+            # wait for confirmation from STM32
+            if self.ser.read(1) != b'D':
+                return
+
+            expected_bytes = self.frame_size + 1    # expect one length byte and one frame
+            
+            raw_data = self.ser.read(expected_bytes)
+            if len(raw_data) < expected_bytes:
+                return
+                
+            Bx = int.from_bytes(raw_data[5:7], "little", signed=True) * self.multiplier[self.measuring_range]
+            By = int.from_bytes(raw_data[7:9], "little", signed=True) * self.multiplier[self.measuring_range]
+            Bz = int.from_bytes(raw_data[9:11], "little", signed=True) * self.multiplier[self.measuring_range]
+
+            self.clock.emit([Bx, By, Bz])
+
+        except serial.SerialException:
+            # This can happen if the device is unplugged.
+            self.stop()
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
