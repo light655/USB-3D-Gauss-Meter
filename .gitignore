@@ -4,5 +4,6 @@ python-client/venv
 python-client/test.py
 python-client/test.csv
 python-client/__pycache__/
+python-client/*.zip
 *.FCBak
 shell/shell_v2-multi.3mf
