@@ -1,7 +1,8 @@
 .vscode
 firmware/upload.sh
-*.FCBak
 python-client/venv
 python-client/test.py
 python-client/test.csv
 python-client/__pycache__/
+*.FCBak
+shell/shell_v2-multi.3mf
